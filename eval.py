@@ -174,7 +174,8 @@ def do_python_eval(output_dir='output', use_07=True):
     print('VOC07 metric? ' + ('Yes' if use_07_metric else 'No'))
     if not os.path.isdir(output_dir):
         os.mkdir(output_dir)
-    for i, cls in enumerate(labelmap):
+    #for i, cls in enumerate(labelmap):
+    for i, cls in zip( [1], ['bicycle'] ):
         filename = get_voc_results_file_template(set_type, cls)
         rec, prec, ap = voc_eval(
            filename, annopath, imgsetpath.format(set_type), cls, cachedir,
@@ -344,6 +345,8 @@ cachedir: Directory for caching the annotations
             if ovmax > ovthresh:
                 if not R['difficult'][jmax]:
                     if not R['det'][jmax]:
+                        import pdb
+                        pdb.set_trace()
                         tp[d] = 1.
                         R['det'][jmax] = 1
                     else:
@@ -379,7 +382,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     from layers import Detect
 
     num_images = len(dataset)
-    parser = Detect(num_classes, 0, 200, 0.01, 0.45)
+    parser = Detect(num_classes, 0, 200, 0.1, 0.45)
     softmax = nn.Softmax(dim=-1)
 
 
@@ -389,6 +392,7 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     det_file = os.path.join(output_dir, 'detections.pkl')
 
     for i in range(num_images):
+        break
         im, gt, h, w = dataset.pull_item(i)
 
         x = im.unsqueeze(0)
@@ -455,15 +459,17 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
 #         print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
 #                                                     num_images, detect_time))
 
-    with open(det_file, 'wb') as f:
-        pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
+    #with open(det_file, 'wb') as f:
+    #    pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
+    with open(det_file, 'rb') as f:
+        all_boxes = pickle.load(f)
 
     print('Evaluating detections')
     evaluate_detections(all_boxes, output_dir, dataset)
 
 
 def evaluate_detections(box_list, output_dir, dataset):
-    write_voc_results_file(box_list, dataset)
+    #write_voc_results_file(box_list, dataset)
     do_python_eval(output_dir)
 
 
