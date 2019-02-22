@@ -35,7 +35,7 @@ class Detect(Function):
         num_priors = prior_data.size(0)
         output = torch.zeros(num, self.num_classes, self.top_k, 5)
         conf_preds = conf_data.view(num, num_priors,
-                                    self.num_classes).transpose(2, 1)
+                                    self.num_classes).transpose(2, 1)        
 
         # Decode predictions into bboxes.
         for i in range(num):
@@ -46,7 +46,12 @@ class Detect(Function):
             for cl in range(1, self.num_classes):
                 c_mask = conf_scores[cl].gt(self.conf_thresh)
                 scores = conf_scores[cl][c_mask]
-                if scores.dim() == 0:
+
+                # import pdb
+                # pdb.set_trace()
+
+                # if scores.dim() == 0:
+                if not c_mask.any():
                     continue
                 l_mask = c_mask.unsqueeze(1).expand_as(decoded_boxes)
                 boxes = decoded_boxes[l_mask].view(-1, 4)

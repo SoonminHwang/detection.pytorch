@@ -1,11 +1,26 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 from layers import *
-from data import voc, coco
+# from data import voc, coco
+from data import voc
 import os
 
+
+def build_ssd(backbone='vgg16', size=300, num_classes=21):    
+#     if size != 300:
+#         print("ERROR: You specified size " + repr(size) + ". However, " +
+#               "currently only SSD300 (size=300) is supported!")
+#         return
+
+    if backbone == 'vgg16':
+        base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
+                                     add_extras(extras[str(size)], 1024),
+                                     mbox[str(size)], num_classes)
+    else:
+        raise NotImplementedError
+        
+    return SSD(size, base_, extras_, head_, num_classes)
 
 class SSD(nn.Module):
     """Single Shot Multibox Architecture
@@ -17,21 +32,21 @@ class SSD(nn.Module):
            boxes specific to the layer's feature map size.
     See: https://arxiv.org/pdf/1512.02325.pdf for more details.
 
-    Args:
-        phase: (string) Can be "test" or "train"
+    Args:        
         size: input image size
         base: VGG16 layers for input, size of either 300 or 500
         extras: extra layers that feed to multibox loc and conf layers
         head: "multibox head" consists of loc and conf conv layers
     """
 
-    def __init__(self, phase, size, base, extras, head, num_classes):
-        super(SSD, self).__init__()
-        self.phase = phase
+    def __init__(self, size, base, extras, head, num_classes):
+        super(SSD, self).__init__()        
         self.num_classes = num_classes
-        self.cfg = (coco, voc)[num_classes == 21]
-        self.priorbox = PriorBox(self.cfg)
-        self.priors = Variable(self.priorbox.forward(), volatile=True)
+        self.cfg = voc
+        self.priorbox = PriorBox(self.cfg)                
+        
+        with torch.no_grad():
+            self.priors = self.priorbox.forward()
         self.size = size
 
         # SSD network
@@ -42,10 +57,6 @@ class SSD(nn.Module):
 
         self.loc = nn.ModuleList(head[0])
         self.conf = nn.ModuleList(head[1])
-
-        if phase == 'test':
-            self.softmax = nn.Softmax(dim=-1)
-            self.detect = Detect(num_classes, 0, 200, 0.01, 0.45)
 
     def forward(self, x):
         """Applies network layers and ops on input image(s) x.
@@ -95,19 +106,24 @@ class SSD(nn.Module):
 
         loc = torch.cat([o.view(o.size(0), -1) for o in loc], 1)
         conf = torch.cat([o.view(o.size(0), -1) for o in conf], 1)
-        if self.phase == "test":
-            output = self.detect(
-                loc.view(loc.size(0), -1, 4),                   # loc preds
-                self.softmax(conf.view(conf.size(0), -1,
-                             self.num_classes)),                # conf preds
-                self.priors.type(type(x.data))                  # default boxes
-            )
-        else:
-            output = (
-                loc.view(loc.size(0), -1, 4),
-                conf.view(conf.size(0), -1, self.num_classes),
-                self.priors
-            )
+        
+        return loc.view(loc.size(0), -1, 4), \
+                conf.view(conf.size(0), -1, self.num_classes), \
+                self.priors        
+        
+#         if self.phase == "test":
+#             output = self.detect(
+#                 loc.view(loc.size(0), -1, 4),                   # loc preds
+#                 self.softmax(conf.view(conf.size(0), -1,
+#                              self.num_classes)),                # conf preds
+#                 self.priors.type(type(x.data))                  # default boxes
+#             )
+#         else:
+#             output = (
+#                 loc.view(loc.size(0), -1, 4),
+#                 conf.view(conf.size(0), -1, self.num_classes),
+#                 self.priors
+#             )
         return output
 
     def load_weights(self, base_file):
@@ -193,17 +209,3 @@ mbox = {
     '300': [4, 6, 6, 6, 4, 4],  # number of boxes per feature map location
     '512': [],
 }
-
-
-def build_ssd(phase, size=300, num_classes=21):
-    if phase != "test" and phase != "train":
-        print("ERROR: Phase: " + phase + " not recognized")
-        return
-    if size != 300:
-        print("ERROR: You specified size " + repr(size) + ". However, " +
-              "currently only SSD300 (size=300) is supported!")
-        return
-    base_, extras_, head_ = multibox(vgg(base[str(size)], 3),
-                                     add_extras(extras[str(size)], 1024),
-                                     mbox[str(size)], num_classes)
-    return SSD(phase, size, base_, extras_, head_, num_classes)
