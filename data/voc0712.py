@@ -25,8 +25,8 @@ VOC_CLASSES = (  # always index 0
     'sheep', 'sofa', 'train', 'tvmonitor')
 
 # note: if you used our download scripts, this should be right
-# VOC_ROOT = osp.join(HOME, "data/VOCdevkit/")
-VOC_ROOT = osp.join(HOME, "Documents/github/ssd.pytorch/data/VOCdevkit/")
+VOC_ROOT = osp.join(HOME, "workspace", "dataset", "VOCdevkit")
+#VOC_ROOT = osp.join(HOME, "Documents/github/ssd.pytorch/data/VOCdevkit/")
 
 
 class VOCAnnotationTransform(object):
@@ -137,7 +137,7 @@ class VOCDetection(data.Dataset):
             img = img[:, :, (2, 1, 0)]
             # img = img.transpose(2, 0, 1)
             target = np.hstack((boxes, np.expand_dims(labels, axis=1)))
-        return torch.from_numpy(img).permute(2, 0, 1), target, height, width, index
+        return torch.from_numpy(img).permute(2, 0, 1), target, height, width, int(img_id[1])
     
     def pull_item(self, index):
         img_id = self.ids[index]

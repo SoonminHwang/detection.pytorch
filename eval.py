@@ -376,6 +376,13 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     all_boxes = [[[] for _ in range(num_images)]
                  for _ in range(len(labelmap)+1)]
 
+    from layers import Detect
+
+    num_images = len(dataset)
+    parser = Detect(num_classes, 0, 200, 0.01, 0.45)
+    softmax = nn.Softmax(dim=-1)
+
+
     # timers
     _t = {'im_detect': Timer(), 'misc': Timer()}
     output_dir = get_output_dir('ssd300_120000', set_type)
@@ -384,11 +391,15 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
     for i in range(num_images):
         im, gt, h, w = dataset.pull_item(i)
 
-        x = Variable(im.unsqueeze(0))
+        x = im.unsqueeze(0)
         if args.cuda:
             x = x.cuda()
         _t['im_detect'].tic()
-        detections = net(x).data
+#         detections = net(x).data
+        with torch.no_grad():    
+            loc_pred, cls_pred, priors = net(x)    
+        detections = parser(loc_pred, softmax(cls_pred), priors.type(type(x)))
+        
         detect_time = _t['im_detect'].toc(average=False)
 
         # skip j = 0, because it's the background class
@@ -408,38 +419,41 @@ def test_net(save_folder, net, cuda, dataset, transform, top_k,
                                   scores[:, np.newaxis])).astype(np.float32,
                                                                  copy=False)
             all_boxes[j][i] = cls_dets
-
-        # import pdb
-        # pdb.set_trace()
-        
-        from data import VOC_CLASSES as labels
-        top_k=10
-
-        im = cv2.imread(dataset._imgpath % dataset.ids[i])
-
-        plt.figure(figsize=(10,10))
-        colors = plt.cm.hsv(np.linspace(0, 1, 21)).tolist()
-        plt.imshow(im)  # plot the image for matplotlib
-        currentAxis = plt.gca()
-
-        detections = cls_dets.copy()
-        # scale each detection back up to the image
-        scale = torch.Tensor(im.shape[1::-1]).repeat(2)
-        for i in range(detections.size(1)):
-            j = 0
-            while detections[0,i,j,0] >= 0.6:
-                score = detections[0,i,j,0]
-                label_name = labels[i-1]
-                display_txt = '%s: %.2f'%(label_name, score)
-                pt = (detections[0,i,j,1:]*scale).cpu().numpy()
-                coords = (pt[0], pt[1]), pt[2]-pt[0]+1, pt[3]-pt[1]+1
-                color = colors[i]
-                currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=2))
-                currentAxis.text(pt[0], pt[1], display_txt, bbox={'facecolor':color, 'alpha':0.5})
-                j+=1
-
-        print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
+            
+            print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
                                                     num_images, detect_time))
+
+#         # import pdb
+#         # pdb.set_trace()
+        
+#         from data import VOC_CLASSES as labels
+#         top_k=10
+
+#         im = cv2.imread(dataset._imgpath % dataset.ids[i])
+
+#         plt.figure(figsize=(10,10))
+#         colors = plt.cm.hsv(np.linspace(0, 1, 21)).tolist()
+#         plt.imshow(im)  # plot the image for matplotlib
+#         currentAxis = plt.gca()
+
+#         detections = cls_dets.copy()
+#         # scale each detection back up to the image
+#         scale = torch.Tensor(im.shape[1::-1]).repeat(2)
+#         for i in range(detections.size(1)):
+#             j = 0
+#             while detections[0,i,j,0] >= 0.6:
+#                 score = detections[0,i,j,0]
+#                 label_name = labels[i-1]
+#                 display_txt = '%s: %.2f'%(label_name, score)
+#                 pt = (detections[0,i,j,1:]*scale).cpu().numpy()
+#                 coords = (pt[0], pt[1]), pt[2]-pt[0]+1, pt[3]-pt[1]+1
+#                 color = colors[i]
+#                 currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=2))
+#                 currentAxis.text(pt[0], pt[1], display_txt, bbox={'facecolor':color, 'alpha':0.5})
+#                 j+=1
+
+#         print('im_detect: {:d}/{:d} {:.3f}s'.format(i + 1,
+#                                                     num_images, detect_time))
 
     with open(det_file, 'wb') as f:
         pickle.dump(all_boxes, f, pickle.HIGHEST_PROTOCOL)
@@ -456,9 +470,10 @@ def evaluate_detections(box_list, output_dir, dataset):
 if __name__ == '__main__':
     # load net
     num_classes = len(labelmap) + 1                      # +1 for background
-    net = build_ssd('test', 300, num_classes)            # initialize SSD
-    # net.load_state_dict(torch.load(args.trained_model))
-    net.load_state_dict(torch.load(args.trained_model, map_location='cpu'))
+#     net = build_ssd('test', 300, num_classes)            # initialize SSD
+    net = build_ssd('vgg16', 300, 21)    # initialize SSD
+    net.load_state_dict(torch.load(args.trained_model))
+#     net.load_state_dict(torch.load(args.trained_model, map_location='cpu'))
     net.eval()
     print('Finished loading model!')
     # load data
