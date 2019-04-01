@@ -25,7 +25,8 @@ VOC_CLASSES = (  # always index 0
     'sheep', 'sofa', 'train', 'tvmonitor')
 
 # note: if you used our download scripts, this should be right
-VOC_ROOT = osp.join(HOME, "workspace", "dataset", "VOCdevkit")
+# VOC_ROOT = osp.join(HOME, "workspace", "dataset", "VOCdevkit")
+VOC_ROOT = '/raid/datasets/pascal_voc'
 #VOC_ROOT = osp.join(HOME, "Documents/github/ssd.pytorch/data/VOCdevkit/")
 
 
